@@ -34,7 +34,16 @@
 <script src="quotes.js"></script>
 <script src="app.js"></script>
 <script>
-if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+if ('serviceWorker' in navigator) {
+  // Saat versi baru mengambil alih, muat ulang sekali. Tidak berlaku pada pemasangan pertama.
+  var hadSW = !!navigator.serviceWorker.controller, swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadSW || swReloaded) return;
+    swReloaded = true;
+    if (window.SADAD_RELOAD) window.SADAD_RELOAD(); else location.reload();
+  });
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
 </script>
 </body>
 </html>

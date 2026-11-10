@@ -1,12 +1,13 @@
 /* SADAD · mode offline.
    Berkas aplikasi disajikan dari simpanan supaya langsung terbuka, lalu diperbarui diam-diam dari jaringan.
-   Jadi versi baru di GitHub terpakai pada pembukaan berikutnya. Menaikkan VERSION memaksa simpanan lama dibuang. */
-const VERSION = 'sadad-v1';
+   Setiap rilis menaikkan VERSION. Versi baru lalu dipasang di latar belakang dan halaman memuat ulang sekali. */
+const VERSION = 'sadad-v2';
 const FONTS = 'sadad-fonts';
 const SHELL = ['./', 'index.html', 'styles.css', 'core.js', 'quotes.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' melewati simpanan HTTP peramban, supaya yang dipasang benar-benar berkas terbaru dari GitHub.
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONTS).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

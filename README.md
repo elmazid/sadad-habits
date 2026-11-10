@@ -4,7 +4,7 @@ Planner rutinitas harian dan pekanan dalam bentuk aplikasi web (PWA). Namanya da
 
 ## Isi singkat
 
-- **Hari ini**: busur progres dengan empat titik (Mulai, Separuh, Aman, Sempurna), blok waktu yang sedang berjalan, task yang belum sempat dari blok sebelumnya, deadline terdekat, dan satu kutipan per hari.
+- **Hari ini**: busur progres dengan empat titik (Mulai, Separuh, Aman, Sempurna), daftar Sekarang berisi task yang belum selesai (blok yang sedang berjalan, yang belum sempat dari blok sebelumnya, dan Kapan saja), deadline terdekat, dan satu kutipan per hari. Task yang dicentang menyingkir ke **Semua blok hari ini** sekitar satu detik kemudian, dan bisa dibatalkan lewat tombol **Batalkan** di notifikasi bawah.
 - **Pekan**: tujuh hari dalam satu baris, daftar per hari (kemarin masih bisa dicentang susulan), dan papan task per hari.
 - **Deadline**: daftar bertanggal, urut dari yang terdekat, dengan hitungan H-n.
 - **Capaian**: rantai, rantai terpanjang, konsistensi 30 hari, peta 18 pekan, dan konsistensi per task.
@@ -14,7 +14,7 @@ Lima blok waktu (Subuh, Pagi, Siang, Sore, Malam) dibatasi terbit matahari, Zuhu
 
 ## Pasang di GitHub Pages (sekitar 5 menit)
 
-1. Ekstrak `sadad.zip`. Isinya 12 file dalam satu folder, tanpa subfolder.
+1. Ekstrak zip SADAD (misalnya `sadad-1.1.zip`). Isinya 12 file dalam satu folder, tanpa subfolder.
 2. Di github.com: **New repository**, beri nama misalnya `sadad`, pilih **Public**, lalu Create. Pilih namanya sekarang dan jangan diganti: di iPhone, alamat baru berarti ikon baru dan data mulai dari nol.
 3. Di repo itu: **Add file → Upload files**, pilih semua file, lalu **Commit changes**.
 4. **Settings → Pages**: Source *Deploy from a branch*, Branch `main`, folder `/ (root)`, lalu **Save**.
@@ -26,7 +26,14 @@ Aplikasi mulai dengan contoh rutinitas. Ketuk **Kosongkan, isi sendiri** untuk m
 
 ## Memperbarui
 
-Unggah file yang berubah ke repo yang sama. Aplikasi mengambil versi baru di latar belakang dan memakainya pada pembukaan berikutnya, jadi buka dua kali. Kalau tetap versi lama, naikkan `VERSION` di `sw.js` (misalnya `sadad-v2`).
+Unggah file dari zip terbaru ke repo yang sama (**Add file → Upload files**, file lama otomatis tertimpa), lalu **Commit changes** dan tunggu 1 sampai 2 menit. Sesudah itu buka aplikasinya: versi baru dipasang di latar belakang, lalu aplikasi memuat ulang sendiri sekali. Pembaruan dari versi 1.0 adalah pengecualian: versi lama belum punya muat ulang otomatis, jadi tutup aplikasinya lalu buka lagi.
+
+Setiap rilis menaikkan `VERSION` di `sw.js`. Kalau kamu mengubah file sendiri, naikkan juga angkanya (misalnya `sadad-v3`) supaya HP mengambil versi baru.
+
+## Riwayat versi
+
+- **1.1**: area ketuk task hanya bulatan dan tulisannya; ketukan yang bergeser atau terjadi saat layar masih meluncur diabaikan; task yang dicentang, termasuk Kapan saja, menyingkir ke Semua blok hari ini; tombol Batalkan setelah mencentang; pembaruan aplikasi termuat otomatis.
+- **1.0**: rilis pertama.
 
 Mengubah kode tidak menyentuh data. Data hanya hilang kalau aplikasi dihapus dari layar utama, data situs dibersihkan, atau alamatnya berganti.
 
