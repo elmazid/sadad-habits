@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const C = window.SADAD_CORE, QD = window.SADAD_QUOTES, PREVIEW = !!window.SADAD_PREVIEW;
-  const KEY = 'sadad.v1', VERSION = '1.1';
+  const KEY = 'sadad.v1', VERSION = '1.2';
   const { pad, parse, addDays, diffDays } = C;
 
   /* ================= util ================= */
@@ -41,6 +41,7 @@
     spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16z"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>', bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
     save: '<path d="M5 4h11l3 3v13H5V4zM8 4v5h7V4M8 20v-6h8v6"/>',
+    note: '<path d="M7 3h7l5 5v13H7V3z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>',
   };
   const ic = (n, cls) => `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
 
@@ -82,7 +83,8 @@
     o.set.hide = o.set.hide || {};
     o.meta = Object.assign({}, f.meta, o.meta || {});
     o.meta.miles = o.meta.miles || {};
-    ['tasks', 'todos', 'dl', 'pauses'].forEach((x) => { if (!Array.isArray(o[x])) o[x] = []; });
+    ['tasks', 'todos', 'dl', 'pauses', 'marks', 'lists'].forEach((x) => { if (!Array.isArray(o[x])) o[x] = []; });
+    o.lists.forEach((l) => { if (!Array.isArray(l.items)) l.items = []; });
     if (!o.days || typeof o.days !== 'object') o.days = {};
     o.start = o.start || k; o.seq = o.seq || 1;
     o.tasks.forEach((t) => { if (!Array.isArray(t.days)) t.days = [0, 1, 2, 3, 4, 5, 6]; if (t.sticky == null) t.sticky = true; if (t.on == null) t.on = true; if (!t.step) t.step = 1; });
@@ -111,10 +113,16 @@
     T('Minum air', 'any', { type: 'count', target: 8, unit: 'gelas' });
     T('Kabari orang tua', 'any', { days: [5] });
     S.dl.push({ id: C.newId(S, 'd'), name: 'Contoh: kumpulkan tugas', date: addDays(k, 9), note: '', done: null, demo: 1 });
+    const M = (name, type, val, o) => S.marks.push(Object.assign({ id: C.newId(S, 'm'), name, type, val, unit: '', start: null, end: null, laps: 0, at: addDays(k, -1), ord: S.seq, demo: 1 }, o || {}));
+    M('Tilawah', 'page', 195, { start: 1, end: 604 });
+    M('Murojaah juz akhir', 'page', 587, { start: 482, end: 604, laps: 2, at: k });
+    M('Cas jam', 'date', addDays(k, -4));
+    S.lists.push({ id: C.newId(S, 'l'), name: 'Wish list', items: [{ id: C.newId(S, 'i'), text: 'Mushaf saku', done: null }, { id: C.newId(S, 'i'), text: 'Botol minum 1 liter', done: null }], ord: S.seq, demo: 1 });
     S.meta.demo = true;
   }
   function firstRun(k) {
     S = C.fresh(k);
+    S.marks = []; S.lists = [];
     try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone, c = CITIES.find((x) => x[3] === tz); if (c) { S.set.loc = c[0]; S.set.lat = c[1]; S.set.lng = c[2]; } } catch (e) { /* pakai bawaan */ }
     S.meta.weekSeen = C.weekStart(k, S.set.weekStart);
     seedDemo(k);
@@ -380,7 +388,7 @@
       <div class="pills"><button class="pill${sk.todaySafe ? ' safe' : ''}" data-act="tab" data-tab="capaian" aria-label="Rantai ${sk.cur} hari. Buka capaian.">${ic('link')}${sk.cur}<span>hari</span></button></div></div>
       <div class="hero-date"><span>${longDate(k)}</span>${hj.text ? `<span lang="ar" dir="rtl">${hj.text}</span>` : ''}</div></header>`;
     if (!S.tasks.some((t) => !t.gone)) {
-      return hero + notice(k) + `<section class="card hi"><div class="empty">${ic('plus')}<p>Belum ada rutinitas. Tambahkan task pertamamu, lalu ia muncul di sini sesuai blok waktunya.</p><button class="btn primary" data-act="new">Tambah task</button></div></section>` + extras(k);
+      return hero + dlTop(k) + notice(k) + `<section class="card hi"><div class="empty">${ic('plus')}<p>Belum ada rutinitas. Tambahkan task pertamamu, lalu ia muncul di sini sesuai blok waktunya.</p><button class="btn primary" data-act="new">Tambah task</button></div></section>` + extras(k);
     }
     const ownAll = by(cur.id), own = top.filter((x) => x.t.block === cur.id), any = top.filter((x) => x.t.block === 'any'), late = top.filter((x) => x.t.block !== cur.id && x.t.block !== 'any');
     let nowBody = '';
@@ -401,17 +409,23 @@
       return `<div class="fold${open ? ' open' : ''}"><button class="fold-head" data-act="fold" data-b="${b}" aria-expanded="${open}">${ic(BL[b].ic, 'b')}<b>${BL[b].n}${sub ? `<small>${sub}</small>` : ''}</b>${countChip(all)}${ic('down', 'chev')}</button>
         ${open ? `<div class="fold-body">${taskList(arch, k)}${up ? `<p class="muted">${up} lainnya ada di daftar atas.</p>` : ''}</div>` : ''}</div>`;
     }).join('');
-    return hero + gaugeCard(k, st, sk) + notice(k) + nowCard + (folds ? `<section class="card"><div class="card-h"><h2>Semua blok hari ini</h2></div><div class="folds">${folds}</div></section>` : '') + extras(k);
+    return hero + dlTop(k) + gaugeCard(k, st, sk) + notice(k) + nowCard + (folds ? `<section class="card"><div class="card-h"><h2>Semua blok hari ini</h2></div><div class="folds">${folds}</div></section>` : '') + extras(k);
   }
   function dlChip(d, k) { const n = diffDays(k, d.date); return `<span class="dl-h ${n < 0 ? '' : n <= 1 ? 'now' : n <= 3 ? 'soon' : n <= 7 ? 'near' : ''}">${n === 0 ? 'Hari ini' : n === 1 ? 'Besok' : n > 0 ? 'H-' + n : 'Lewat ' + -n + ' hr'}</span>`; }
   const dlOpen = () => S.dl.filter((d) => !d.done).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   function extras(k) {
-    const todos = S.todos.filter((t) => (!t.done && t.date <= k) || t.done === k), dls = dlOpen().slice(0, 3), q = C.pick(QD.DAILY, k, S.set.hide, 20261110);
+    const todos = S.todos.filter((t) => (!t.done && t.date <= k) || t.done === k), q = C.pick(QD.DAILY, k, S.set.hide, 20261110);
     let h = '';
     if (todos.length) h += `<section class="card"><div class="card-h"><h2>Sekali jalan</h2><span class="count">${todos.filter((t) => t.done).length}/${todos.length}</span></div><ul class="tasks">${todos.map((t) => `<li class="task${t.done ? ' done' : ''}"><button class="t-hit" role="checkbox" aria-checked="${!!t.done}" data-act="todo" data-id="${t.id}"><span class="t-box">${ic('check')}</span><span class="t-body"><span class="t-name">${esc(t.name)}</span>${t.date < k && !t.done ? `<span class="t-meta"><span>sejak ${shortDate(t.date)}</span></span>` : ''}</span></button></li>`).join('')}</ul></section>`;
-    if (dls.length) h += `<section class="card"><div class="card-h"><h2>Deadline terdekat</h2><button class="link" data-act="tab" data-tab="deadline">Semua${ic('right')}</button></div><div>${dls.map((d) => `<div class="dl">${dlChip(d, k)}<div class="dl-main"><b>${esc(d.name)}</b><span>${longDate(d.date)}</span></div></div>`).join('')}</div></section>`;
     if (q) h += `<section class="card"><div class="label">Kutipan hari ini</div>${quoteHTML(q, 'big')}</section>`;
     return h;
+  }
+
+  // Tiga deadline terdekat tampil di bagian atas Hari ini, tepat di bawah tanggal.
+  function dlTop(k) {
+    const dls = dlOpen().slice(0, 3);
+    if (!dls.length) return '';
+    return `<section class="card dl-top"><div class="card-h"><h2>${ic('flag')}Deadline</h2><button class="link" data-act="tab" data-tab="catatan" data-to="sec-deadline">Semua${ic('right')}</button></div><div>${dls.map((d) => `<div class="dl">${dlChip(d, k)}<div class="dl-main"><b>${esc(d.name)}</b><span>${longDate(d.date)}</span></div></div>`).join('')}</div></section>`;
   }
 
   /* ================= Pekan ================= */
@@ -440,14 +454,47 @@
       ${ids.length ? `<section class="card"><div class="card-h"><h2>Papan pekan</h2></div><div class="mx"><div></div>${days.map((d) => `<div class="mx-h${d === k ? ' today' : ''}">${DOW3[parse(d).getDay()][0]}</div>`).join('')}${rows}</div><div class="legend"><span><i style="background:var(--cp3)"></i>selesai</span><span><i style="background:linear-gradient(135deg,var(--cp3) 50%,var(--dim) 50%)"></i>sebagian</span><span><i style="background:var(--dim)"></i>belum</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--ink-4)"></i>akan datang</span></div></section>` : ''}`;
   }
 
-  /* ================= Deadline ================= */
-  function viewDeadline() {
-    const k = today(), open = dlOpen(), done = S.dl.filter((d) => d.done).sort((a, b) => (a.done < b.done ? 1 : -1));
+  /* ================= Catatan: penanda, daftar, deadline ================= */
+  // Mushaf Madinah 604 halaman. Halaman awal (SA) dan akhir (SE) tiap surah mengikuti data halaman api.quran.com.
+  const SA = [1, 2, 50, 77, 106, 128, 151, 177, 187, 208, 221, 235, 249, 255, 262, 267, 282, 293, 305, 312, 322, 332, 342, 350, 359, 367, 377, 385, 396, 404, 411, 415, 418, 428, 434, 440, 446, 453, 458, 467, 477, 483, 489, 496, 499, 502, 507, 511, 515, 518, 520, 523, 526, 528, 531, 534, 537, 542, 545, 549, 551, 553, 554, 556, 558, 560, 562, 564, 566, 568, 570, 572, 574, 575, 577, 578, 580, 582, 583, 585, 586, 587, 587, 589, 590, 591, 591, 592, 593, 594, 595, 595, 596, 596, 597, 597, 598, 598, 599, 599, 600, 600, 601, 601, 601, 602, 602, 602, 603, 603, 603, 604, 604, 604];
+  const SE = [1, 49, 76, 106, 127, 150, 176, 186, 207, 221, 235, 248, 255, 261, 267, 281, 293, 304, 312, 321, 331, 341, 349, 359, 366, 376, 385, 396, 404, 410, 414, 417, 427, 434, 440, 445, 452, 458, 467, 476, 482, 489, 495, 498, 502, 506, 510, 515, 517, 520, 523, 525, 528, 531, 534, 537, 541, 545, 548, 551, 552, 554, 555, 557, 559, 561, 564, 566, 568, 570, 571, 573, 575, 577, 578, 580, 581, 583, 584, 585, 586, 587, 589, 589, 590, 591, 592, 592, 594, 594, 595, 596, 596, 596, 597, 597, 598, 599, 599, 600, 600, 600, 601, 601, 601, 602, 602, 602, 603, 603, 603, 604, 604, 604];
+  const SN = ["Al-Fatihah", "Al-Baqarah", "Ali 'Imran", "An-Nisa'", "Al-Ma'idah", "Al-An'am", "Al-A'raf", "Al-Anfal", "At-Taubah", "Yunus", "Hud", "Yusuf", "Ar-Ra'd", "Ibrahim", "Al-Hijr", "An-Nahl", "Al-Isra'", "Al-Kahf", "Maryam", "Taha", "Al-Anbiya'", "Al-Hajj", "Al-Mu'minun", "An-Nur", "Al-Furqan", "Asy-Syu'ara'", "An-Naml", "Al-Qasas", "Al-'Ankabut", "Ar-Rum", "Luqman", "As-Sajdah", "Al-Ahzab", "Saba'", "Fatir", "Yasin", "As-Saffat", "Sad", "Az-Zumar", "Gafir", "Fussilat", "Asy-Syura", "Az-Zukhruf", "Ad-Dukhan", "Al-Jasiyah", "Al-Ahqaf", "Muhammad", "Al-Fath", "Al-Hujurat", "Qaf", "Az-Zariyat", "At-Tur", "An-Najm", "Al-Qamar", "Ar-Rahman", "Al-Waqi'ah", "Al-Hadid", "Al-Mujadalah", "Al-Hasyr", "Al-Mumtahanah", "As-Saff", "Al-Jumu'ah", "Al-Munafiqun", "At-Tagabun", "At-Talaq", "At-Tahrim", "Al-Mulk", "Al-Qalam", "Al-Haqqah", "Al-Ma'arij", "Nuh", "Al-Jinn", "Al-Muzzammil", "Al-Muddassir", "Al-Qiyamah", "Al-Insan", "Al-Mursalat", "An-Naba'", "An-Nazi'at", "'Abasa", "At-Takwir", "Al-Infitar", "Al-Mutaffifin", "Al-Insyiqaq", "Al-Buruj", "At-Tariq", "Al-A'la", "Al-Gasyiyah", "Al-Fajr", "Al-Balad", "Asy-Syams", "Al-Lail", "Ad-Duha", "Asy-Syarh", "At-Tin", "Al-'Alaq", "Al-Qadr", "Al-Bayyinah", "Az-Zalzalah", "Al-'Adiyat", "Al-Qari'ah", "At-Takasur", "Al-'Asr", "Al-Humazah", "Al-Fil", "Quraisy", "Al-Ma'un", "Al-Kausar", "Al-Kafirun", "An-Nasr", "Al-Lahab", "Al-Ikhlas", "Al-Falaq", "An-Nas"];
+  const juzOf = (p) => (p < 22 ? 1 : Math.min(30, Math.floor((p - 2) / 20) + 1));
+  const jStart = (j) => (j === 1 ? 1 : 20 * j - 18);
+  const jEnd = (j) => (j === 30 ? 604 : 20 * j + 1);
+  // Surah pertama di halaman itu, sama dengan nama surah di kepala halaman mushaf.
+  const surahOf = (p) => { for (let i = 0; i < 114; i++) if (SA[i] <= p && p <= SE[i]) return SN[i]; return ''; };
+  const pageInfo = (p) => `Juz ${juzOf(p)}, ${surahOf(p)}`;
+  const hasRange = (m) => m.type === 'page' && m.start >= 1 && m.end > m.start;
+  const isJuzRange = (m) => m.start === jStart(juzOf(m.start)) && m.end === jEnd(juzOf(m.end));
+  const rangeLabel = (m) => { if (!isJuzRange(m)) return `hlm ${m.start}–${m.end}`; const a = juzOf(m.start), b = juzOf(m.end); return a === b ? `Juz ${a}` : `Juz ${a}–${b}`; };
+  // Angka penanda adalah posisi sekarang: di awal rentang 0%, melewati akhir rentang berarti khatam.
+  const rangePct = (m) => clamp((m.val - m.start) / (m.end - m.start + 1), 0, 1);
+  const ago = (d) => { const n = diffDays(d, today()); return n <= 0 ? 'hari ini' : n === 1 ? 'kemarin' : n + ' hari lalu'; };
+  const dayDist = (d) => { const n = diffDays(d, today()); return n === 0 ? 'hari ini' : n === 1 ? 'kemarin' : n > 1 ? n + ' hari lalu' : n === -1 ? 'besok' : -n + ' hari lagi'; };
+  const byOrd = (a, b) => (a.ord || 0) - (b.ord || 0);
+  function markTile(m) {
+    let main, sub = '', foot = m.at ? 'diubah ' + ago(m.at) : '';
+    if (m.type === 'page') { main = `<span class="mk-v">${m.val}<small>hlm</small></span>`; sub = pageInfo(m.val); }
+    else if (m.type === 'num') main = `<span class="mk-v">${esc(m.val)}${m.unit ? `<small>${esc(m.unit)}</small>` : ''}</span>`;
+    else if (m.type === 'date') { main = `<span class="mk-v">${m.val ? shortDate(m.val) : '–'}</span>`; sub = m.val ? dayDist(m.val) : 'belum diisi'; foot = ''; }
+    else main = `<span class="mk-t">${m.val ? esc(m.val) : 'Kosong'}</span>`;
+    const bar = hasRange(m) ? `<span class="mk-bar"><i style="width:${(rangePct(m) * 100).toFixed(1)}%"></i></span><span class="mk-r"><span>${rangeLabel(m)}</span>${m.laps ? `<b>khatam ${m.laps}×</b>` : ''}</span>` : '';
+    return `<button class="mk" data-act="mOpen" data-id="${m.id}"><span class="mk-n">${esc(m.name)}</span>${main}${sub ? `<span class="mk-s">${sub}</span>` : ''}${bar}${foot ? `<span class="mk-f">${foot}</span>` : ''}</button>`;
+  }
+  function viewNotes() {
+    const k = today(), open = dlOpen(), done = S.dl.filter((d) => d.done).sort((a, b) => (a.done < b.done ? 1 : -1)), marks = S.marks.slice().sort(byOrd), lists = S.lists.slice().sort(byOrd);
     const row = (d) => `<div class="dl${d.done ? ' done' : ''}">${d.done ? `<span class="dl-h">${shortDate(d.date)}</span>` : dlChip(d, k)}<button class="dl-main" data-act="dlEdit" data-id="${d.id}"><b>${esc(d.name)}</b><span>${d.done ? 'Selesai ' + shortDate(d.done) : longDate(d.date) + ' ' + parse(d.date).getFullYear()}${d.note ? ', ' + esc(d.note) : ''}</span></button><button class="iconbtn" data-act="dlDone" data-id="${d.id}" aria-label="${d.done ? 'Buka lagi' : 'Tandai selesai'} ${esc(d.name)}">${ic(d.done ? 'loop' : 'check')}</button></div>`;
-    return `<header class="page-h"><div><h1>Deadline</h1><p>${open.length ? open.length + ' menunggu, urut dari yang terdekat.' : 'Ujian, tugas, atau tenggat lain yang punya tanggal.'}</p></div></header>
-      <section class="card hi"><form class="dl-add" data-form="dl" novalidate><label class="field"><span>Nama deadline</span><input class="input" id="dl-name" name="name" maxlength="60" autocomplete="off" placeholder="Misal: UAS Ushul Fiqh"></label><div class="row2"><label class="field"><span>Tanggal</span><input class="input" id="dl-date" name="date" type="date" min="${k}" value="${addDays(k, 7)}"></label><div class="field"><span>&nbsp;</span><button class="btn primary" type="submit">${ic('plus')}Tambah</button></div></div>${ui.err === 'dl' ? '<p class="err">Isi nama dan tanggalnya dulu.</p>' : ''}</form></section>
-      ${open.length ? `<section class="card"><div>${open.map(row).join('')}</div></section>` : `<section class="card"><div class="empty">${ic('flag')}<p>Belum ada deadline. Yang kamu tambahkan akan tampil di sini dan tiga terdekat muncul di halaman Hari ini.</p></div></section>`}
-      ${done.length ? `<section class="card"><div class="card-h"><h2>Selesai</h2><button class="link" data-act="dlShow">${ui.dlDone ? 'Sembunyikan' : 'Lihat ' + done.length}</button></div>${ui.dlDone ? `<div>${done.map(row).join('')}</div>` : ''}</section>` : ''}`;
+    const list = (l) => { const o = l.items.filter((x) => !x.done); return `<button class="ls" data-act="lOpen" data-id="${l.id}"><span class="ls-h"><b>${esc(l.name)}</b><span class="count">${o.length ? o.length + ' belum' : 'kosong'}</span></span>${o.length ? `<span class="ls-p">${o.slice(0, 3).map((x) => esc(x.text)).join(', ')}</span>` : ''}</button>`; };
+    const add = (act, label) => `<button class="btn sm" data-act="${act}">${ic('plus')}${label}</button>`;
+    return `<header class="page-h"><div><h1>Catatan</h1><p>${marks.length} penanda, ${lists.length} daftar, ${open.length} deadline.</p></div></header>
+      <section class="card hi" id="sec-penanda"><div class="card-h"><h2>Penanda</h2>${add('mNew', 'Penanda')}</div>
+        ${marks.length ? `<div class="mk-grid">${marks.map(markTile).join('')}</div>` : '<p class="muted">Catat posisi tilawah, murojaah, hafalan, atau tanggal yang ingin kamu ingat. Ketuk penanda untuk memajukannya.</p>'}</section>
+      <section class="card" id="sec-daftar"><div class="card-h"><h2>Daftar</h2>${add('lNew', 'Daftar')}</div>
+        ${lists.length ? `<div class="ls-wrap">${lists.map(list).join('')}</div>` : '<p class="muted">Untuk wish list, list artikel, dan sejenisnya. Isinya bertahan sampai dicentang dan tidak muncul di Hari ini.</p>'}</section>
+      <section class="card" id="sec-deadline"><div class="card-h"><h2>Deadline</h2>${add('dlNew', 'Deadline')}</div>
+        ${open.length ? `<div>${open.map(row).join('')}</div>` : '<p class="muted">Belum ada deadline. Tiga yang terdekat tampil di bagian atas Hari ini.</p>'}
+        ${done.length ? `<div><button class="link" data-act="dlShow">${ui.dlDone ? 'Sembunyikan yang selesai' : 'Lihat ' + done.length + ' yang selesai'}</button></div>${ui.dlDone ? `<div>${done.map(row).join('')}</div>` : ''}` : ''}</section>`;
   }
 
   /* ================= Capaian ================= */
@@ -550,25 +597,159 @@
     </form>`;
   }
   function dlSheet() {
-    const sh = ui.sheet, d = sh.d;
-    return `<form class="sheet" data-form="dlEdit" novalidate aria-label="Ubah deadline">
-      <div class="sh-head"><h2>Ubah deadline</h2><button type="button" class="iconbtn" data-act="closeSheet" aria-label="Tutup">${ic('x')}</button></div>
-      <label class="field"><span>Nama</span><input class="input" id="e-name" data-f="name" value="${esc(d.name)}" maxlength="60" autocomplete="off"></label>
+    const sh = ui.sheet, d = sh.d, isNew = !sh.id;
+    return `<form class="sheet" data-form="dlEdit" novalidate aria-label="${isNew ? 'Deadline baru' : 'Ubah deadline'}">
+      <div class="sh-head"><h2>${isNew ? 'Deadline baru' : 'Ubah deadline'}</h2><button type="button" class="iconbtn" data-act="closeSheet" aria-label="Tutup">${ic('x')}</button></div>
+      <label class="field"><span>Nama</span><input class="input" id="e-name" data-f="name" value="${esc(d.name)}" maxlength="60" autocomplete="off" placeholder="Misal: UAS Ushul Fiqh"></label>
       <label class="field"><span>Tanggal</span><input class="input" id="e-date" type="date" data-f="date" value="${d.date}"></label>
       <label class="field"><span>Catatan singkat</span><input class="input" id="e-note" data-f="note" value="${esc(d.note)}" maxlength="60" autocomplete="off" placeholder="Opsional"></label>
       ${sh.err ? `<p class="err" role="alert">${sh.err}</p>` : ''}
-      ${sh.ask ? `<p class="err">Hapus deadline ini?</p><div class="sh-foot"><button type="button" class="btn" data-act="delNo">Batal</button><button type="button" class="btn primary" data-act="dlDelYes">Ya, hapus</button></div>` : `<div class="sh-foot"><button type="button" class="btn quiet" data-act="askDel">Hapus</button><button type="submit" class="btn primary">Simpan</button></div>`}
+      ${sh.ask ? `<p class="err">Hapus deadline ini?</p><div class="sh-foot"><button type="button" class="btn" data-act="delNo">Batal</button><button type="button" class="btn primary" data-act="dlDelYes">Ya, hapus</button></div>` : `<div class="sh-foot">${isNew ? '' : '<button type="button" class="btn quiet" data-act="askDel">Hapus</button>'}<button type="submit" class="btn primary">${isNew ? 'Tambah' : 'Simpan'}</button></div>`}
     </form>`;
+  }
+
+  // Lembar penanda: tampilan cepat untuk memajukan angka, atau formulir detail untuk penanda baru dan pengaturannya.
+  const MSTEP = { page: [-1, 1, 2, 5, 10, 20], num: [-1, 1, 5, 10] };
+  const curMark = () => (ui.sheet && S.marks.find((x) => x.id === ui.sheet.id)) || null;
+  const curList = () => (ui.sheet && S.lists.find((x) => x.id === ui.sheet.id)) || null;
+  const sheetHead = (t) => `<div class="sh-head"><h2>${t}</h2><button type="button" class="iconbtn" data-act="closeSheet" aria-label="Tutup">${ic('x')}</button></div>`;
+  function markSheet() {
+    const sh = ui.sheet, d = sh.d, m = curMark(), err = sh.err ? `<p class="err" role="alert">${sh.err}</p>` : '';
+    if (m && !sh.edit) {
+      let body;
+      if (m.type === 'date') {
+        body = `<div class="mk-big"><b>${m.val ? shortDate(m.val) : '–'}</b></div><p class="mk-info">${m.val ? longDate(m.val) + ', ' + dayDist(m.val) : 'Belum diisi'}</p>
+          <button type="button" class="btn primary" data-act="mToday">Jadikan hari ini</button>
+          <label class="field"><span>Atau pilih tanggal lain</span><input class="input" id="m-date" type="date" data-chg="mDate" value="${m.val || ''}"></label>`;
+      } else if (m.type === 'text') {
+        body = `<form class="mk-jump" data-form="mText" novalidate><input class="input" id="m-text" data-f="text" value="${esc(d.text != null ? d.text : m.val || '')}" maxlength="80" autocomplete="off" aria-label="Isi ${esc(m.name)}"><button class="btn primary" type="submit">Simpan</button></form>`;
+      } else {
+        const r = hasRange(m), pct = r ? rangePct(m) : 0, jl = m.type === 'page' ? 'Lompat ke halaman' : 'Ganti angka';
+        body = `<div class="mk-big"><b>${esc(m.val)}</b>${m.type === 'page' ? '<small>hlm</small>' : m.unit ? `<small>${esc(m.unit)}</small>` : ''}</div>
+          ${m.type === 'page' ? `<p class="mk-info">${pageInfo(m.val)}</p>` : ''}
+          ${r ? `<div class="mk-prog"><div class="bar" style="--p:${(pct * 100).toFixed(1)}%;--c:var(--cp3)"><i></i></div><span>${rangeLabel(m)}, ${Math.round(pct * 100)}%${m.laps ? `, khatam ${m.laps}×` : ''}</span></div>` : ''}
+          <div class="chips steps">${MSTEP[m.type].map((n) => `<button type="button" class="chip step${n < 0 ? ' neg' : ''}" data-act="mStep" data-n="${n}" aria-label="${n < 0 ? 'Kurangi' : 'Tambah'} ${Math.abs(n)}">${n < 0 ? '−' + -n : '+' + n}</button>`).join('')}</div>
+          ${r && m.val >= m.end ? `<button type="button" class="btn primary" data-act="mLap">${ic('book')}Khatam, mulai putaran baru</button>` : ''}
+          <form class="mk-jump" data-form="mJump" novalidate><input class="input" id="m-jump" type="number" inputmode="${m.type === 'page' ? 'numeric' : 'decimal'}" data-f="jump" value="${esc(d.jump || '')}" placeholder="${jl}" aria-label="${jl}"><button class="btn" type="submit">Pakai</button></form>`;
+      }
+      return `<div class="sheet" role="dialog" aria-label="${esc(m.name)}">${sheetHead(esc(m.name))}${body}${err}<div class="mk-meta"><span>${m.at ? 'Diubah ' + ago(m.at) : ''}</span><button type="button" class="link" data-act="mEdit">Ubah detail</button></div></div>`;
+    }
+    const isNew = !m, ty = d.type, field = (label, inner) => `<label class="field"><span>${label}</span>${inner}</label>`;
+    const num = (id, f, v, mode) => `<input class="input" id="${id}" type="number" inputmode="${mode || 'numeric'}" data-f="${f}" value="${esc(v)}">`;
+    let range = '';
+    if (ty === 'page') {
+      range = `<div class="field"><span>Rentang target</span><div class="chips">${chip('rm', 'juz', 'Per juz', d.rm === 'juz')}${chip('rm', 'page', 'Per halaman', d.rm === 'page')}${chip('rm', 'none', 'Tanpa rentang', d.rm === 'none')}</div></div>`;
+      if (d.rm === 'juz') range += `<div class="row2">${field('Dari juz', num('m-ja', 'ja', d.ja))}${field('Sampai juz', num('m-jb', 'jb', d.jb))}</div>`;
+      if (d.rm === 'page') range += `<div class="row2">${field('Dari halaman', num('m-pa', 'pa', d.pa))}${field('Sampai halaman', num('m-pb', 'pb', d.pb))}</div>`;
+      range += `<p class="muted" id="m-rhint">${d.rm === 'none' ? 'Tanpa bilah progres dan hitungan khatam.' : ''}</p>`;
+    }
+    const valInput = ty === 'date' ? `<input class="input" id="m-val" type="date" data-f="val" value="${/^\d{4}-\d{2}-\d{2}$/.test(d.val) ? d.val : ''}">`
+      : ty === 'text' ? `<input class="input" id="m-val" data-f="val" value="${esc(d.val)}" maxlength="80" autocomplete="off">`
+      : `<input class="input" id="m-val" type="number" inputmode="${ty === 'page' ? 'numeric' : 'decimal'}" data-f="val" value="${esc(d.val)}"${ty === 'page' ? ' placeholder="Kosongkan untuk mulai dari awal rentang"' : ''}>`;
+    const valLabel = ty === 'page' ? 'Posisi sekarang (halaman)' : ty === 'num' ? 'Angka sekarang' : ty === 'date' ? 'Tanggal' : 'Isi';
+    return `<form class="sheet" data-form="mSave" novalidate aria-label="${isNew ? 'Penanda baru' : 'Ubah penanda'}">${sheetHead(isNew ? 'Penanda baru' : 'Ubah penanda')}
+      ${field('Nama', `<input class="input" id="m-name" data-f="name" value="${esc(d.name)}" maxlength="40" autocomplete="off" placeholder="Misal: Murojaah juz akhir">`)}
+      <div class="field"><span>Jenis</span><div class="chips">${[['page', 'Halaman mushaf'], ['num', 'Angka'], ['date', 'Tanggal'], ['text', 'Teks']].map((t) => chip('type', t[0], t[1], ty === t[0])).join('')}</div></div>
+      ${range}
+      ${field(valLabel, valInput)}
+      ${ty === 'num' ? field('Satuan', `<input class="input" id="m-unit" data-f="unit" value="${esc(d.unit)}" maxlength="12" autocomplete="off" placeholder="Opsional, misal: ayat">`) : ''}
+      ${ty === 'page' && d.rm !== 'none' && !isNew ? field('Sudah khatam berapa kali', num('m-laps', 'laps', d.laps)) : ''}
+      ${isNew ? '' : `<div class="btn-row"><button type="button" class="btn sm" data-act="mMove" data-dir="-1">${ic('up')}Naik</button><button type="button" class="btn sm" data-act="mMove" data-dir="1">${ic('down')}Turun</button></div>`}
+      ${err}
+      ${sh.ask ? `<p class="err">Hapus penanda ini?</p><div class="sh-foot"><button type="button" class="btn" data-act="delNo">Batal</button><button type="button" class="btn primary" data-act="mDelYes">Ya, hapus</button></div>` : `<div class="sh-foot">${isNew ? '' : '<button type="button" class="btn quiet" data-act="askDel">Hapus</button>'}<button type="submit" class="btn primary">Simpan</button></div>`}
+    </form>`;
+  }
+  function markForm(m) {
+    const r = !!m && hasRange(m);
+    const d = m
+      ? { name: m.name, type: m.type, val: String(m.val == null ? '' : m.val), unit: m.unit || '', rm: m.type !== 'page' ? 'juz' : !r ? 'none' : isJuzRange(m) ? 'juz' : 'page', ja: r ? juzOf(m.start) : 1, jb: r ? juzOf(m.end) : 30, pa: r ? m.start : 1, pb: r ? m.end : 604, laps: m.laps || 0 }
+      : { name: '', type: 'page', val: '', unit: '', rm: 'juz', ja: 1, jb: 30, pa: 1, pb: 604, laps: 0 };
+    return { type: 'mark', id: m ? m.id : null, edit: true, d, err: '', ask: false };
+  }
+  // Keterangan rentang diperbarui selagi mengetik, tanpa menggambar ulang lembar (supaya keyboard tidak tertutup).
+  function markHint() {
+    const el = $('#m-rhint'), sh = ui.sheet;
+    if (!el || !sh || sh.type !== 'mark' || !sh.edit) return;
+    const d = sh.d, I = (x) => Math.round(+x);
+    if (d.rm === 'juz') { const a = I(d.ja), b = I(d.jb); el.textContent = a >= 1 && b <= 30 && a <= b ? `Halaman ${jStart(a)}–${jEnd(b)}, ${jEnd(b) - jStart(a) + 1} halaman.` : 'Isi juz 1 sampai 30.'; }
+    else if (d.rm === 'page') { const a = I(d.pa), b = I(d.pb); el.textContent = a >= 1 && b <= 604 && a < b ? `Juz ${juzOf(a)} sampai ${juzOf(b)}, ${b - a + 1} halaman.` : 'Isi halaman 1 sampai 604.'; }
+  }
+  function celebrateLap(m) {
+    chime('gold'); confetti(true);
+    ui.sheet = null; renderSheet();
+    const q = C.pick(QD.CP[4], today(), S.set.hide, 400 + m.laps);
+    modal(`<div class="medal">${ic('book')}</div><h2>Khatam ke-${m.laps}</h2><p>${esc(m.name)}, ${rangeLabel(m)}. Penanda kembali ke halaman ${m.start}.</p>${q ? quoteHTML(q) : ''}<button class="btn primary" data-act="modalClose">Lanjut</button>`);
+  }
+  function stepMark(n) {
+    const m = curMark();
+    if (!m) return;
+    let v = (+m.val || 0) + n, lapped = false;
+    if (m.type === 'page') {
+      if (hasRange(m)) {
+        if (v > m.end) { v = m.start + Math.min(v - m.end - 1, m.end - m.start); m.laps = (m.laps || 0) + 1; lapped = true; }
+        else if (v < m.start) v = m.start;
+      }
+      v = clamp(v, 1, 604);
+    } else v = Math.max(0, Math.round(v * 100) / 100);
+    m.val = v; m.at = today(); ui.sheet.err = ''; save(); buzz();
+    render();
+    if (lapped) celebrateLap(m); else renderSheet();
+  }
+  function setMarkVal(v) { const m = curMark(); if (!m) return; m.val = v; m.at = today(); save(); buzz(); renderSheet(); render(); }
+  function saveMark() {
+    const sh = ui.sheet, d = sh.d, I = (x) => Math.round(+x), name = String(d.name || '').trim(), blank = String(d.val).trim() === '';
+    const fail = (msg) => { sh.err = msg; renderSheet(); };
+    if (!name) return fail('Beri nama dulu.');
+    const o = { name, type: d.type, unit: d.type === 'num' ? String(d.unit || '').trim() : '', start: null, end: null, laps: 0 };
+    if (d.type === 'page') {
+      if (d.rm === 'juz') { const a = I(d.ja), b = I(d.jb); if (!(a >= 1 && b <= 30 && a <= b)) return fail('Juz antara 1 dan 30, dan juz awal tidak boleh melewati juz akhir.'); o.start = jStart(a); o.end = jEnd(b); }
+      else if (d.rm === 'page') { const a = I(d.pa), b = I(d.pb); if (!(a >= 1 && b <= 604 && a < b)) return fail('Halaman antara 1 dan 604, dan halaman awal harus sebelum halaman akhir.'); o.start = a; o.end = b; }
+      const lo = o.start || 1, hi = o.end || 604, v = blank ? lo : I(d.val);
+      if (!(v >= lo && v <= hi)) return fail(`Posisi harus antara halaman ${lo} dan ${hi}.`);
+      o.val = v; o.laps = o.start ? Math.max(0, I(d.laps) || 0) : 0;
+    } else if (d.type === 'num') { const v = blank ? 0 : +d.val; if (!isFinite(v)) return fail('Isi dengan angka.'); o.val = v; }
+    else if (d.type === 'date') o.val = /^\d{4}-\d{2}-\d{2}$/.test(d.val) ? d.val : today();
+    else o.val = String(d.val || '').trim();
+    const k = today(), m = curMark();
+    if (m) { if (String(m.val) !== String(o.val) || m.type !== o.type) o.at = k; Object.assign(m, o); delete m.demo; }
+    else S.marks.push(Object.assign({ id: C.newId(S, 'm'), ord: S.seq, at: k }, o));
+    save(); ui.sheet = null; renderSheet(); render();
+    toast(ic('check') + `<span>${m ? 'Penanda disimpan.' : 'Penanda ditambahkan.'}</span>`);
+  }
+
+  // Lembar daftar: isi bertahan sampai dicentang; yang dicentang turun ke Selesai.
+  function listSheet() {
+    const sh = ui.sheet, d = sh.d, l = curList(), err = sh.err ? `<p class="err" role="alert">${sh.err}</p>` : '';
+    if (!l) {
+      return `<form class="sheet" data-form="lNew" novalidate aria-label="Daftar baru">${sheetHead('Daftar baru')}
+        <label class="field"><span>Nama daftar</span><input class="input" id="l-name" data-f="name" value="${esc(d.name)}" maxlength="40" autocomplete="off" placeholder="Misal: Wish list"></label>
+        ${err}<div class="sh-foot"><button type="submit" class="btn primary">Buat daftar</button></div></form>`;
+    }
+    const open = l.items.filter((x) => !x.done), done = l.items.filter((x) => x.done);
+    const item = (x) => `<li class="task${x.done ? ' done' : ''}"><button type="button" class="t-hit" role="checkbox" aria-checked="${!!x.done}" data-act="item" data-id="${x.id}"><span class="t-box">${ic('check')}</span><span class="t-body"><span class="t-name">${esc(x.text)}</span></span></button>${sh.edit ? `<button type="button" class="t-dec" data-act="itemDel" data-id="${x.id}" aria-label="Hapus ${esc(x.text)}">${ic('trash')}</button>` : ''}</li>`;
+    const tools = sh.ask
+      ? `<p class="err">Hapus daftar ${esc(l.name)} beserta isinya?</p><div class="btn-row"><button type="button" class="btn" data-act="delNo">Batal</button><button type="button" class="btn primary" data-act="lDelYes">Ya, hapus</button></div>`
+      : `<div class="btn-row"><button type="button" class="btn sm" data-act="lMove" data-dir="-1">${ic('up')}Naik</button><button type="button" class="btn sm" data-act="lMove" data-dir="1">${ic('down')}Turun</button><button type="button" class="btn sm quiet" data-act="askDel">Hapus daftar</button></div>`;
+    return `<div class="sheet" role="dialog" aria-label="${esc(l.name)}">
+      <div class="sh-head"><h2>${esc(l.name)}</h2><div class="btn-row"><button type="button" class="btn sm quiet" data-act="lEdit">${sh.edit ? 'Selesai' : 'Ubah'}</button><button type="button" class="iconbtn" data-act="closeSheet" aria-label="Tutup">${ic('x')}</button></div></div>
+      ${sh.edit ? `<div class="mk-jump"><input class="input" id="l-rename" data-f="name" value="${esc(d.name)}" maxlength="40" autocomplete="off" aria-label="Nama daftar"><button type="button" class="btn" data-act="lRename">Ganti nama</button></div>` : ''}
+      <form class="mk-jump" data-form="item" novalidate><input class="input" id="li-new" data-f="draft" value="${esc(d.draft || '')}" maxlength="80" autocomplete="off" placeholder="Tambah isi daftar" aria-label="Tambah isi daftar"><button class="btn primary" type="submit" aria-label="Tambah">${ic('plus')}</button></form>
+      ${open.length ? `<ul class="tasks">${open.map(item).join('')}</ul>` : '<p class="muted">Belum ada yang perlu dicentang.</p>'}
+      ${done.length ? `<div class="fold${sh.showDone ? ' open' : ''}"><button type="button" class="fold-head" data-act="lDone" aria-expanded="${!!sh.showDone}">${ic('check', 'b')}<b>Selesai<small>${done.length}</small></b><span></span>${ic('down', 'chev')}</button>${sh.showDone ? `<div class="fold-body"><ul class="tasks">${done.map(item).join('')}</ul><button type="button" class="btn sm" data-act="lClear">Bersihkan yang selesai</button></div>` : ''}</div>` : ''}
+      ${sh.edit ? tools : ''}
+    </div>`;
   }
   function renderSheet(focusName) {
     const el = $('#sheet');
     if (!ui.sheet) { el.hidden = true; el.innerHTML = ''; return; }
     const sc = $('.sheet', el), top = sc ? sc.scrollTop : 0;
-    el.innerHTML = ui.sheet.type === 'task' ? taskSheet() : dlSheet();
+    const T = ui.sheet.type;
+    el.innerHTML = T === 'task' ? taskSheet() : T === 'mark' ? markSheet() : T === 'list' ? listSheet() : dlSheet();
     el.hidden = false;
     const ns = $('.sheet', el);
     if (ns) { ns.style.animation = sc ? 'none' : ''; ns.scrollTop = top; }
-    if (focusName) { const i = $('#f-name', el) || $('#e-name', el); if (i && !i.value) i.focus(); }
+    if (focusName) { const i = $('#f-name', el) || $('#e-name', el) || $('#m-name', el) || $('#l-name', el); if (i && !i.value) i.focus(); }
+    if (T === 'mark') markHint();
   }
   function openTask(id) {
     const k = today(), t = id ? C.taskById(S, id) : null;
@@ -599,10 +780,11 @@
   }
 
   /* ================= render ================= */
-  const TABS = [['hari-ini', 'Hari ini', 'sun'], ['pekan', 'Pekan', 'week'], ['deadline', 'Deadline', 'flag'], ['capaian', 'Capaian', 'trophy'], ['kelola', 'Kelola', 'sliders']];
+  const TABS = [['hari-ini', 'Hari ini', 'sun'], ['pekan', 'Pekan', 'week'], ['catatan', 'Catatan', 'note'], ['capaian', 'Capaian', 'trophy'], ['kelola', 'Kelola', 'sliders']];
+  const tabOf = (h) => (h === 'deadline' ? 'catatan' : h);
   function render() {
     applyTheme();
-    const v = ui.tab, html = v === 'pekan' ? viewWeek() : v === 'deadline' ? viewDeadline() : v === 'capaian' ? viewStats() : v === 'kelola' ? viewManage() : viewToday();
+    const v = ui.tab, html = v === 'pekan' ? viewWeek() : v === 'catatan' ? viewNotes() : v === 'capaian' ? viewStats() : v === 'kelola' ? viewManage() : viewToday();
     const ae = document.activeElement, keep = ae && ae.id && $('#view').contains(ae) ? { id: ae.id, s: ae.selectionStart, e: ae.selectionEnd } : null;
     $('#view').innerHTML = html;
     $('#tabs').innerHTML = `<nav class="tabbar" aria-label="Halaman">${TABS.map((t) => `<button class="tab" data-act="tab" data-tab="${t[0]}"${t[0] === v ? ' aria-current="page"' : ''}>${ic(t[2])}<span>${t[1]}</span></button>`).join('')}</nav>`;
@@ -610,6 +792,7 @@
     afterRender();
   }
   function go(tab, o) {
+    tab = tabOf(tab);
     if (!TABS.some((t) => t[0] === tab)) tab = 'hari-ini';
     ui.tab = tab; ui.hold = {}; clearTimeout(flushT); ui.prev = null; ui.err = ''; ui.ask = null;
     if (tab !== 'kelola') ui.sub = null;
@@ -680,7 +863,7 @@
     try { navigator.clipboard.writeText(text).then(() => toast(ic('check') + `<span>${okMsg}</span>`), fail); } catch (e) { fail(); }
   }
   const A = {
-    tab: (el) => go(el.dataset.tab),
+    tab: (el) => { go(el.dataset.tab); const to = el.dataset.to && document.getElementById(el.dataset.to); if (to) window.scrollTo(0, Math.max(0, to.getBoundingClientRect().top + window.scrollY - 12)); },
     fold: (el) => { ui.open[el.dataset.b] = !ui.open[el.dataset.b]; render(); },
     toggle: (el) => { const k = el.dataset.k, id = el.dataset.id, e = C.dueList(S, k).find((x) => x[0] === id); if (e && editable(k)) setTask(k, id, C.valOf(S, k, id) >= e[1] ? 0 : e[1]); },
     todo: (el) => { const t = S.todos.find((x) => x.id === el.dataset.id); if (!t) return; t.done = t.done ? null : today(); save(); if (t.done) { buzz(); chime('one'); } render(); },
@@ -733,8 +916,8 @@
     haptic: () => { S.set.haptic = !S.set.haptic; save(); render(); buzz(); },
     pause: () => { const k = today(); if (!C.paused(S, k)) S.pauses.push({ a: k, b: null }); save(); render(); toast(ic('pause') + '<span>Jeda dimulai. Rantai tidak putus selama jeda.</span>', 3200); },
     resume: () => { const k = today(); S.pauses.forEach((p) => { if (p.a <= k && !p.b) p.b = addDays(k, -1); }); S.pauses = S.pauses.filter((p) => !p.b || p.b >= p.a); save(); render(); toast(ic('play') + '<span>Jeda diakhiri. Selamat melanjutkan.</span>'); },
-    demoKeep: () => { S.meta.demo = false; S.tasks.forEach((t) => delete t.demo); S.dl = S.dl.filter((d) => !d.demo); save(); render(); },
-    demoClear: () => { const k = today(); S.tasks = S.tasks.filter((t) => !t.demo); S.dl = S.dl.filter((d) => !d.demo); S.meta.demo = false; if (!S.tasks.length) { S.days = {}; S.start = k; S.sealed = null; S.pauses = []; S.meta.miles = {}; } ui.defs++; save(); go('kelola'); toast('<span>Contoh dikosongkan. Tambahkan task pertamamu.</span>', 3200); },
+    demoKeep: () => { S.meta.demo = false; S.tasks.forEach((t) => delete t.demo); S.marks.forEach((m) => delete m.demo); S.lists.forEach((l) => delete l.demo); S.dl = S.dl.filter((d) => !d.demo); save(); render(); },
+    demoClear: () => { const k = today(); S.tasks = S.tasks.filter((t) => !t.demo); S.marks = S.marks.filter((m) => !m.demo); S.lists = S.lists.filter((l) => !l.demo); S.dl = S.dl.filter((d) => !d.demo); S.meta.demo = false; if (!S.tasks.length) { S.days = {}; S.start = k; S.sealed = null; S.pauses = []; S.meta.miles = {}; } ui.defs++; save(); go('kelola'); toast('<span>Contoh dikosongkan. Tambahkan task pertamamu.</span>', 3200); },
     gapPause: () => { const g = C.gapBefore(S, today()); if (g) { S.pauses.push({ a: g.a, b: g.b }); S.meta.gapSeen = g.b; save(); render(); toast(ic('shield') + '<span>Ditandai sebagai jeda. Rantai tetap tersambung.</span>', 3200); } },
     gapNo: () => { const g = C.gapBefore(S, today()); if (g) { S.meta.gapSeen = g.b; save(); render(); } },
     recapOk: () => { S.meta.weekSeen = C.weekStart(today(), S.set.weekStart); save(); render(); },
@@ -756,6 +939,25 @@
     libBack: () => { ui.sub = null; render(); window.scrollTo(0, 0); },
     libF: (el) => { ui.libF = el.dataset.v; render(); },
     hide: (el) => { const id = el.dataset.id; if (S.set.hide[id]) delete S.set.hide[id]; else S.set.hide[id] = 1; save(); render(); },
+    dlNew: () => { ui.sheet = { type: 'dl', id: null, d: { name: '', date: addDays(today(), 7), note: '' }, err: '', ask: false }; renderSheet(true); },
+    mNew: () => { ui.sheet = markForm(null); renderSheet(true); },
+    mOpen: (el) => { if (!S.marks.some((x) => x.id === el.dataset.id)) return; ui.sheet = { type: 'mark', id: el.dataset.id, edit: false, d: { jump: '', text: null }, err: '', ask: false }; renderSheet(); },
+    mEdit: () => { const m = curMark(); if (m) { ui.sheet = markForm(m); renderSheet(); } },
+    mStep: (el) => stepMark(+el.dataset.n),
+    mLap: () => { const m = curMark(); if (!m || !hasRange(m)) return; m.laps = (m.laps || 0) + 1; m.val = m.start; m.at = today(); save(); render(); celebrateLap(m); },
+    mToday: () => setMarkVal(today()),
+    mMove: (el) => { const m = curMark(); if (!m) return; const L = S.marks.slice().sort(byOrd), i = L.indexOf(m), j = i + +el.dataset.dir; if (j < 0 || j >= L.length) return; L.splice(i, 1); L.splice(j, 0, m); L.forEach((x, n) => { x.ord = n + 1; }); save(); render(); toast(`<span>${esc(m.name)} sekarang urutan ${j + 1}.</span>`, 1600); },
+    mDelYes: () => { S.marks = S.marks.filter((x) => x.id !== ui.sheet.id); save(); ui.sheet = null; renderSheet(); render(); toast('<span>Penanda dihapus.</span>'); },
+    lNew: () => { ui.sheet = { type: 'list', id: null, d: { name: '' }, err: '' }; renderSheet(true); },
+    lOpen: (el) => { const l = S.lists.find((x) => x.id === el.dataset.id); if (!l) return; ui.sheet = { type: 'list', id: l.id, d: { name: l.name, draft: '' }, err: '', edit: false, ask: false, showDone: false }; renderSheet(); },
+    item: (el) => { const l = curList(), x = l && l.items.find((y) => y.id === el.dataset.id); if (!x) return; x.done = x.done ? null : today(); save(); if (x.done) { buzz(); chime('one'); } renderSheet(); render(); },
+    itemDel: (el) => { const l = curList(); if (!l) return; l.items = l.items.filter((y) => y.id !== el.dataset.id); save(); renderSheet(); render(); },
+    lEdit: () => { ui.sheet.edit = !ui.sheet.edit; ui.sheet.ask = false; renderSheet(); },
+    lRename: () => { const l = curList(), n = String(ui.sheet.d.name || '').trim(); if (!l || !n) return; l.name = n; save(); renderSheet(); render(); toast(ic('check') + '<span>Nama daftar diganti.</span>', 1600); },
+    lDone: () => { ui.sheet.showDone = !ui.sheet.showDone; renderSheet(); },
+    lClear: () => { const l = curList(); if (!l) return; l.items = l.items.filter((y) => !y.done); save(); renderSheet(); render(); },
+    lMove: (el) => { const l = curList(); if (!l) return; const L = S.lists.slice().sort(byOrd), i = L.indexOf(l), j = i + +el.dataset.dir; if (j < 0 || j >= L.length) return; L.splice(i, 1); L.splice(j, 0, l); L.forEach((x, n) => { x.ord = n + 1; }); save(); render(); toast(`<span>${esc(l.name)} sekarang urutan ${j + 1}.</span>`, 1600); },
+    lDelYes: () => { S.lists = S.lists.filter((x) => x.id !== ui.sheet.id); save(); ui.sheet = null; renderSheet(); render(); toast('<span>Daftar dihapus.</span>'); },
     modalClose: () => closeModal(),
   };
   const dowToday = () => parse(today()).getDay();
@@ -763,11 +965,44 @@
     min: (el) => { S.set.min = clamp(Math.round(+el.value / 5) * 5, 50, 90); save(); render(); },
     loc: (el) => { if (el.value === 'custom') { ui.acc.coord = true; return render(); } const c = CITIES.find((x) => x[0] === el.value); if (c) { S.set.loc = c[0]; S.set.lat = c[1]; S.set.lng = c[2]; ui.acc.coord = false; ui.err = ''; save(); tick(true); } },
     manual: (el) => { const m = Object.assign({}, S.set.manual); m[el.dataset.key] = toMin(el.value); if (!(m.sunrise > 200 && m.sunrise < m.dhuhr && m.dhuhr < m.asr && m.asr < m.maghrib && m.maghrib < 1400)) { ui.err = 'manual'; return render(); } m.fajr = Math.max(190, m.sunrise - 80); S.set.manual = m; ui.err = ''; save(); tick(true); },
+    mDate: (el) => { if (el.value) setMarkVal(el.value); },
   };
   const SUBMIT = {
     task: () => saveTask(),
-    dl: (f) => { const name = f.elements.name.value.trim(), date = f.elements.date.value; if (!name || !date) { ui.err = 'dl'; return render(); } S.dl.push({ id: C.newId(S, 'd'), name, date, note: '', done: null }); ui.err = ''; save(); f.elements.name.value = ''; render(); toast(ic('flag') + `<span>Deadline ditambahkan, ${diffDays(today(), date) >= 0 ? 'H-' + diffDays(today(), date) : 'sudah lewat'}.</span>`); },
-    dlEdit: () => { const sh = ui.sheet, d = S.dl.find((x) => x.id === sh.id), name = String(sh.d.name || '').trim(); if (!name || !sh.d.date) { sh.err = 'Nama dan tanggal wajib diisi.'; return renderSheet(); } Object.assign(d, { name, date: sh.d.date, note: String(sh.d.note || '').trim() }); save(); ui.sheet = null; renderSheet(); render(); },
+    dlEdit: () => {
+      const sh = ui.sheet, name = String(sh.d.name || '').trim();
+      if (!name || !sh.d.date) { sh.err = 'Nama dan tanggal wajib diisi.'; return renderSheet(); }
+      const o = { name, date: sh.d.date, note: String(sh.d.note || '').trim() }, d = sh.id ? S.dl.find((x) => x.id === sh.id) : null;
+      if (d) Object.assign(d, o); else S.dl.push(Object.assign({ id: C.newId(S, 'd'), done: null }, o));
+      save(); ui.sheet = null; renderSheet(); render();
+      if (!d) { const n = diffDays(today(), o.date); toast(ic('flag') + `<span>Deadline ditambahkan, ${n > 0 ? 'H-' + n : n === 0 ? 'hari ini' : 'sudah lewat'}.</span>`); }
+    },
+    mSave: () => saveMark(),
+    mJump: () => {
+      const sh = ui.sheet, m = curMark(), raw = String(sh.d.jump || '').trim();
+      if (!m) return;
+      const v = m.type === 'page' ? Math.round(+raw) : +raw;
+      if (!raw || !isFinite(v)) { sh.err = 'Isi angkanya dulu.'; return renderSheet(); }
+      if (m.type === 'page') { const a = hasRange(m) ? m.start : 1, b = hasRange(m) ? m.end : 604; if (v < a || v > b) { sh.err = `Halaman harus antara ${a} dan ${b}.`; return renderSheet(); } }
+      sh.d.jump = ''; sh.err = ''; setMarkVal(v);
+    },
+    mText: () => { const sh = ui.sheet, m = curMark(); if (!m) return; m.val = String(sh.d.text != null ? sh.d.text : m.val || '').trim(); m.at = today(); save(); ui.sheet = null; renderSheet(); render(); toast(ic('check') + '<span>Tersimpan.</span>', 1600); },
+    lNew: () => {
+      const sh = ui.sheet, n = String(sh.d.name || '').trim();
+      if (!n) { sh.err = 'Beri nama dulu.'; return renderSheet(); }
+      const l = { id: C.newId(S, 'l'), name: n, items: [], ord: S.seq };
+      S.lists.push(l); save();
+      ui.sheet = { type: 'list', id: l.id, d: { name: n, draft: '' }, err: '', edit: false, ask: false, showDone: false };
+      renderSheet(); render();
+      const i = $('#li-new'); if (i) i.focus();
+    },
+    item: () => {
+      const sh = ui.sheet, l = curList(), t = String(sh.d.draft || '').trim();
+      if (!l || !t) return;
+      l.items.push({ id: C.newId(S, 'i'), text: t, done: null }); sh.d.draft = ''; save();
+      renderSheet(); render();
+      const i = $('#li-new'); if (i) i.focus();
+    },
     todo: (f) => { const name = f.elements.name.value.trim(); if (!name) return; S.todos.push({ id: C.newId(S, 'o'), name, date: today(), done: null }); save(); f.elements.name.value = ''; render(); const i = $('#todo-name'); if (i) i.focus(); },
   };
 
@@ -777,7 +1012,7 @@
   window.addEventListener('scroll', () => { lastScroll = performance.now(); }, { passive: true });
   document.addEventListener('pointerdown', (e) => { pActive = true; pDown = { x: e.clientX, y: e.clientY, t: performance.now(), sy: window.scrollY }; }, { passive: true, capture: true });
   ['pointerup', 'pointercancel'].forEach((n) => document.addEventListener(n, () => { pActive = false; }, { passive: true, capture: true }));
-  const GUARD = { toggle: 1, inc: 1, dec: 1, todo: 1 };
+  const GUARD = { toggle: 1, inc: 1, dec: 1, todo: 1, item: 1, itemDel: 1, mStep: 1, mOpen: 1, lOpen: 1 };
   function deliberate(e) {
     if (!e.detail || !pDown) return true;
     if (pDown.t - lastScroll < 160) return false;
@@ -790,10 +1025,10 @@
     if (e.target.closest && e.target.closest('#toast')) hideToast();
   });
   document.addEventListener('change', (e) => { const el = e.target; if (el.dataset && el.dataset.chg && CHG[el.dataset.chg]) CHG[el.dataset.chg](el); });
-  document.addEventListener('input', (e) => { const el = e.target, d = el.dataset || {}; if (d.f && ui.sheet) ui.sheet.d[d.f] = el.value; if (d.live === 'min') { const o = $('#min-out'); if (o) o.textContent = el.value + '%'; } if (el.id === 'bak-text') ui.io = el.value; });
+  document.addEventListener('input', (e) => { const el = e.target, d = el.dataset || {}; if (d.f && ui.sheet) { ui.sheet.d[d.f] = el.value; if (ui.sheet.type === 'mark') markHint(); } if (d.live === 'min') { const o = $('#min-out'); if (o) o.textContent = el.value + '%'; } if (el.id === 'bak-text') ui.io = el.value; });
   document.addEventListener('submit', (e) => { e.preventDefault(); const f = e.target.dataset.form; if (f && SUBMIT[f]) SUBMIT[f](e.target); });
   document.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; if (!$('#modal').hidden) closeModal(); else if (ui.sheet) { ui.sheet = null; renderSheet(); } });
-  window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== ui.tab && TABS.some((t) => t[0] === h)) go(h); });
+  window.addEventListener('hashchange', () => { const h = tabOf(location.hash.slice(1)); if (h && h !== ui.tab && TABS.some((t) => t[0] === h)) go(h); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 
   /* ================= mulai ================= */
@@ -801,7 +1036,7 @@
     const k = today();
     S = load(k);
     if (!S) firstRun(k);
-    const h = location.hash.slice(1);
+    const h = tabOf(location.hash.slice(1));
     if (TABS.some((t) => t[0] === h)) ui.tab = h;
     tick(true);
     setInterval(tick, 30000);
