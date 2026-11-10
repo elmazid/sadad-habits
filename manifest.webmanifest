@@ -1,0 +1,17 @@
+{
+  "name": "SADAD",
+  "short_name": "SADAD",
+  "description": "Planner rutinitas harian dan pekanan: blok waktu yang mengikuti waktu shalat, titik progres, rantai, dan deadline.",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#171332",
+  "theme_color": "#171332",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
